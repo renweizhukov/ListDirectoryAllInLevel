@@ -11,6 +11,8 @@
 #include <tchar.h>
 #include <strsafe.h>
 #include <windows.h>
+#include <io.h>
+#include <fcntl.h>
 #include <Shlwapi.h>
 
 #include <queue>

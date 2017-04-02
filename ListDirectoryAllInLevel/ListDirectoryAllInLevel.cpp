@@ -97,6 +97,7 @@ int _tmain(int argc, _TCHAR* argv[])
         return -1;
     }
 
+    _setmode(_fileno(stdout), _O_U16TEXT);
     _tprintf(TEXT("INFO: the root path is %s"), argv[1]);
 
     array<TCHAR, MAX_PATH> rootPath;
