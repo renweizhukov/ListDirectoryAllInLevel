@@ -27,6 +27,8 @@ BOOL AddSubDirsAndFilesToSearchQ(
         return FALSE;
     }
 
+    // Obtain the path search pattern by appending the wild card "\*" to currPath.
+    // This search pattern will be used by FindFirstFile().
     array<TCHAR, MAX_PATH> pathPattern = currPath;
     StringCchCat(pathPattern.data(), MAX_PATH, TEXT("\\*"));
 
@@ -35,6 +37,9 @@ BOOL AddSubDirsAndFilesToSearchQ(
     DWORD dwError = 0;
 
     hFind = FindFirstFile(pathPattern.data(), &ffd);
+    // For a directory, FindFirstFile should at least find two special files 
+    // "." and "..". If it can't find anything, then it implies something 
+    // wrong with the path.
     if (hFind == INVALID_HANDLE_VALUE)
     {
         dwError = GetLastError();
@@ -48,6 +53,9 @@ BOOL AddSubDirsAndFilesToSearchQ(
         if ((wcscmp(ffd.cFileName, TEXT(".")) != 0) &&
             (wcscmp(ffd.cFileName, TEXT("..")) != 0))
         {
+            // The result ffd.cFileName returned by FindFirstFile() and FindNextFile() 
+            // is a relative path based on currPath and isn't a full path, so we append 
+            // ffd.cFileName to currPath to obtain the full path.
             array<TCHAR, MAX_PATH> fileName;
             StringCchCopy(fileName.data(), MAX_PATH, currPath.data());
             StringCchCat(fileName.data(), MAX_PATH, TEXT("\\"));
@@ -58,6 +66,8 @@ BOOL AddSubDirsAndFilesToSearchQ(
 
     BOOL fRet = TRUE;
     dwError = GetLastError();
+    // Only the error "ERROR_NO_MORE_FILES" is expected when FindNextFile() 
+    // reaches its search end and other errors should be treated as failures.
     if (dwError != ERROR_NO_MORE_FILES)
     {
         _tprintf(TEXT("Error: FindNextFile %d"), dwError);
@@ -90,6 +100,7 @@ int _tmain(int argc, _TCHAR* argv[])
         return -1;
     }
 
+    // Check if the input path exists in the system.
     BOOL fPathExists = PathFileExists(argv[1]);
     if (!fPathExists)
     {
@@ -97,12 +108,19 @@ int _tmain(int argc, _TCHAR* argv[])
         return -1;
     }
 
+    // Set the Unicode mode in the console for displaying Unicode characters later.
+    // Note that if you still see garbled characters in the console, you may need 
+    // to change the console font to one which supports those Unicode characters, 
+    // e.g., FangSong for Chinese.
     _setmode(_fileno(stdout), _O_U16TEXT);
-    _tprintf(TEXT("INFO: the root path is %s"), argv[1]);
+    _tprintf(TEXT("INFO: the root path is %s.\n"), argv[1]);
 
     array<TCHAR, MAX_PATH> rootPath;
     StringCchCopy(rootPath.data(), MAX_PATH, argv[1]);
     
+    // The STL containers queue and vector don't work with C arrays like TCHAR[MAX_PATH] 
+    // since the C arrays don't have constructors and destructors, so we have to use the 
+    // STL arrays here.
     queue<array<TCHAR, MAX_PATH>> searchQ;
     searchQ.push(rootPath);
 
@@ -110,6 +128,7 @@ int _tmain(int argc, _TCHAR* argv[])
     
     DWORD dwFileAttr = 0;
     
+    // Perform a breadth-first search starting from the input path.
     while (!searchQ.empty())
     {
         array<TCHAR, MAX_PATH>& currProcessedPath = searchQ.front();
@@ -123,8 +142,13 @@ int _tmain(int argc, _TCHAR* argv[])
         if ((dwFileAttr & FILE_ATTRIBUTE_DIRECTORY) &&
             !(dwFileAttr & FILE_ATTRIBUTE_REPARSE_POINT))
         {
+            // Add the subdirectories and files of currProcessedPath to 
+            // the search queue.
             if (!AddSubDirsAndFilesToSearchQ(currProcessedPath, searchQ))
             {
+                // Here we treat the failure of AddSubDirsAndFilesToSearchQ 
+                // as a fatal one and exit immediately. Depending on your 
+                // situation, you may ignore this failure and continue.
                 return -1;
             }
         }
@@ -133,7 +157,8 @@ int _tmain(int argc, _TCHAR* argv[])
     }
 
     // Print out all the subdirectories and files.
-    _tprintf(TEXT("All the subdirectories and files are listed as below:\n"));
+    _tprintf(TEXT("All the %d subdirectories and files are listed as below:\n"), 
+        allSubDirsAndFiles.size());
     _tprintf(TEXT("================================================================\n"));
     for (auto& onePath : allSubDirsAndFiles)
     {
